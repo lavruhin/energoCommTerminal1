@@ -25,6 +25,7 @@ class GpsData:
     def update(self, date, time, lat, lon, spd):
         self.dt = datetime.datetime(year=date.year, month=date.month, day=date.day,
                                     hour=time.hour, minute=time.minute, second=time.second)
+        self.dt += datetime.timedelta(hours=6)
         self.lat = lat
         self.lon = lon
         self.spd = spd
