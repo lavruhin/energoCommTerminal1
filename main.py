@@ -12,7 +12,7 @@ from RepeatTimer import RepeatTimer
 from Utils import serial_ports
 
 
-useAdam, useOwen, useGps = True, False, True
+useAdam, useOwen, useGps = True, True, True
 POINT_NUM = 0
 PERIOD_SRV = 3
 PATH = "D:\\Data"
@@ -277,9 +277,12 @@ async def main():
         with open("d:\\TerminalProgram\\point.ini", "r") as file:
             global POINT_NUM, useAdam, useOwen, useGps
             POINT_NUM = int(file.readline())
-            useAdam = bool(file.readline())
-            useOwen = bool(file.readline())
-            useGps = bool(file.readline())
+            if file.readline() == "False":
+                useAdam = False
+            if file.readline() == "False":
+                useOwen = False
+            if file.readline() == "False":
+                useGps = False
             print(useGps)
     except (IOError, ValueError):
         print("Can't read d:\\TerminalProgram\\point.ini")
