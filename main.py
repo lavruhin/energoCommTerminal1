@@ -280,6 +280,7 @@ async def main():
             useAdam = bool(file.readline())
             useOwen = bool(file.readline())
             useGps = bool(file.readline())
+            print(useGps)
     except (IOError, ValueError):
         print("Can't read d:\\TerminalProgram\\point.ini")
         exit(-1)
