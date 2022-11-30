@@ -6,6 +6,7 @@ import pynmeagps
 import threading
 import time
 import datetime
+# import OpenOPC
 from GpsData import GpsData
 from RepeatTimer import RepeatTimer
 from Utils import serial_ports
@@ -18,7 +19,7 @@ PATH = "D:\\Data"
 COEFS = {1: [18990, 500, 500],
          2: [19050, 500, 500],
          3: [11658, 150, 0],
-         4: [1, 150, 0]}
+         4: [10050, 150, 0]}
 
 echo_srv_recv, echo_gps, echo_adam, echo_file = False, True, False, False
 MEASURER_REQUEST = "$" + f"{POINT_NUM:02}" + "M\r"
@@ -27,6 +28,9 @@ SYNC_REQUEST = "#" + f"{POINT_NUM:02}" + "\r"
 TIMEOUT_ADAM = 0.2
 TIMEOUT_SRV = 20
 OWEN_SERIAL_PORT = "COM1"
+OWEN_OPC_TAG1 = "Локомотив.МВ110-8АС.Оперативные параметры.Измеренное значение.Вход 1"
+OWEN_OPC_TAG2 = "Локомотив.МВ110-8АС.Оперативные параметры.Измеренное значение.Вход 2"
+OWEN_OPC_TAG3 = "Локомотив.МВ110-8АС.Оперативные параметры.Измеренное значение.Вход 3"
 g_gps_data = GpsData()
 g_file_data = ""
 g_srv_data = b""
@@ -121,6 +125,33 @@ def adam_process(adam_port):
         if ready_to_sent.is_set():
             ready_to_sent.clear()
             srv_data_ready.set()
+
+
+# def owen_process():
+#     opc = OpenOPC.client()
+#     opc.connect("Owen.OPCNet.DA.1")
+#     while True:
+#         measurer_data_ready.wait()
+#         measurer_data_ready.clear()
+#         val = [opc.properties(OWEN_OPC_TAG1, id=2) * COEFS[POINT_NUM][0],
+#                opc.properties(OWEN_OPC_TAG2, id=2) * COEFS[POINT_NUM][1],
+#                opc.properties(OWEN_OPC_TAG3, id=2) * COEFS[POINT_NUM][2]]
+#         with gps_data_lock:
+#             global g_gps_data
+#             gps_data = g_gps_data
+#         file_data = f"{POINT_NUM:02}; {gps_data.date_time}{val[0]:04.2f}; " \
+#                     f"{val[1]:04.2f}; {val[2]:04.2f}; {gps_data.lat_lon_spd}\r"
+#         srv_data = file_data.encode()
+#         with file_data_lock, srv_data_lock:
+#             global g_file_data, g_srv_data
+#             g_file_data = file_data
+#             g_srv_data = srv_data
+#         if echo_adam:
+#             print(f"OWEN {time.time()}")
+#         file_data_ready.set()
+#         if ready_to_sent.is_set():
+#             ready_to_sent.clear()
+#             srv_data_ready.set()
 
 
 def gps_process(gps_port):
@@ -259,6 +290,9 @@ async def main():
     if useAdam:
         adam_thread = threading.Thread(target=adam_process, args=[adam_serial_port])
         adam_thread.start()
+    # else:
+    #     owen_thread = threading.Thread(target=owen_process)
+    #     owen_thread.start()
     file_thread.start()
     srv_thread.start()
     timer.start()
