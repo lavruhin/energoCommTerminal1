@@ -277,11 +277,11 @@ async def main():
         with open("d:\\TerminalProgram\\point.ini", "r") as file:
             global POINT_NUM, useAdam, useOwen, useGps
             POINT_NUM = int(file.readline())
-            if file.readline() == "False":
+            if file.readline()[0:5] == "False":
                 useAdam = False
-            if file.readline() == "False":
+            if file.readline()[0:5] == "False":
                 useOwen = False
-            if file.readline() == "False":
+            if file.readline()[0:5] == "False":
                 useGps = False
     except (IOError, ValueError):
         print("Can't read d:\\TerminalProgram\\point.ini")
