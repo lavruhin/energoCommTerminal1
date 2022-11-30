@@ -13,7 +13,7 @@ from Utils import serial_ports
 
 
 useAdam, useOwen, useGps = True, False, True
-POINT_NUM = 0
+POINT_NUM = 10
 PERIOD_SRV = 3
 PATH = "D:\\Data"
 COEFS = {1: [18990, 500, 500],
