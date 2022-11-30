@@ -15,10 +15,10 @@ useAdam, useOwen, useGps = True, False, True
 POINT_NUM = 3
 PERIOD_SRV = 3
 PATH = "D:\\Data"
-COEFS = {1: [1, 1, 1],
-         2: [1, 1, 1],
+COEFS = {1: [18990, 500, 500],
+         2: [19050, 500, 500],
          3: [11658, 150, 0],
-         4: [1, 1, 1]}
+         4: [1, 150, 0]}
 
 echo_srv_recv, echo_gps, echo_adam, echo_file = False, True, False, False
 MEASURER_REQUEST = "$" + f"{POINT_NUM:02}" + "M\r"
