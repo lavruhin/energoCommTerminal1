@@ -13,7 +13,7 @@ from Utils import serial_ports
 
 
 useAdam, useOwen, useGps = True, False, True
-POINT_NUM = 3
+POINT_NUM = 0
 PERIOD_SRV = 3
 PATH = "D:\\Data"
 COEFS = {1: [18990, 500, 500],
@@ -22,9 +22,6 @@ COEFS = {1: [18990, 500, 500],
          4: [10050, 150, 0]}
 
 echo_srv_recv, echo_gps, echo_adam, echo_file = False, True, False, False
-MEASURER_REQUEST = "$" + f"{POINT_NUM:02}" + "M\r"
-MEASURER_ANSWER = ("!" + f"{POINT_NUM:02}" + "4017\r").encode()
-SYNC_REQUEST = "#" + f"{POINT_NUM:02}" + "\r"
 TIMEOUT_ADAM = 0.2
 TIMEOUT_SRV = 20
 OWEN_SERIAL_PORT = "COM1"
@@ -48,6 +45,9 @@ isGpsOk = False
 
 
 def srv_process(srv_port):
+    MEASURER_REQUEST = "$" + f"{POINT_NUM:02}" + "M\r"
+    MEASURER_ANSWER = ("!" + f"{POINT_NUM:02}" + "4017\r").encode()
+    SYNC_REQUEST = "#" + f"{POINT_NUM:02}" + "\r"
     last_sync_time = time.time()
     srv = serial.Serial(srv_port, timeout=2)
     while True:
@@ -69,7 +69,7 @@ def srv_process(srv_port):
             print(f"Send to server: {MEASURER_ANSWER.decode(errors='ignore')}")
             print("CONNECTED")
             last_sync_time = time.time()
-        if srv_request == SYNC_REQUEST:
+        if srv_request[0:4] == SYNC_REQUEST:
             srv_is_connected.set()
             last_sync_time = time.time()
             srv_data_ready.wait()
@@ -83,6 +83,7 @@ def srv_process(srv_port):
 
 
 def adam_process(adam_port):
+    SYNC_REQUEST = "#" + f"{POINT_NUM:02}" + "\r"
     adam = serial.Serial(adam_port)
     while True:
         measurer_data_ready.wait()
@@ -194,7 +195,7 @@ def file_process():
         filename = f"{PATH}\\{POINT_NUM:02}_{dt.year:04}_{dt.month:02}_{dt.day:02}.csv"
         if not os.path.isfile(filename):
             with open(filename, mode="w") as file:
-                file.write("Объект; Дата; Время; Напряжение; Ток-1; Ток-2; Широта; Долгота; Скорость\n")
+                file.write("Объект; Дата; Время; Напряжение; Ток-1; Ток-2; Широта; Долгота; Скорость; Расстояние\n")
         with open(filename, mode="a") as file:
             for item in range(10):
                 file_data_ready.wait()
@@ -208,6 +209,8 @@ def file_process():
 
 
 def find_serial(use_adam: bool, use_owen: bool, use_gps: bool):
+    MEASURER_REQUEST = "$" + f"{POINT_NUM:02}" + "M\r"
+    MEASURER_ANSWER = ("!" + f"{POINT_NUM:02}" + "4017\r").encode()
     adam_serial, owen_serial, gps_serial, srv_serial = "", "", "", ""
     serial_list = serial_ports()
     if use_adam:
@@ -270,8 +273,16 @@ def timeout():
 
 
 async def main():
-    # with open("c:\\point.ini", "r") as file:
-    # params = list(file.read())
+    try:
+        with open("d:\\TerminalProgram\\point.ini", "r") as file:
+            global POINT_NUM, useAdam, useOwen, useGps
+            POINT_NUM = int(file.readline())
+            useAdam = bool(file.readline())
+            useOwen = bool(file.readline())
+            useGps = bool(file.readline())
+    except (IOError, ValueError):
+        print("Can't read d:\\TerminalProgram\\point.ini")
+        exit(-1)
     if not os.path.exists(PATH):
         try:
             os.mkdir(PATH)
