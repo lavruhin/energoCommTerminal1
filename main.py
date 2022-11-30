@@ -283,7 +283,6 @@ async def main():
                 useOwen = False
             if file.readline() == "False":
                 useGps = False
-            print(useGps)
     except (IOError, ValueError):
         print("Can't read d:\\TerminalProgram\\point.ini")
         exit(-1)
