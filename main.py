@@ -18,8 +18,8 @@ useAdam, useOwen, useGps = True, True, True
 POINT_NUM = 0
 PERIOD_SRV = 4
 PATH = "D:\\Data"
-COEFS = {1: [18990, 500, 500],
-         2: [19050, 500, 500],
+COEFS = {1: [18990, 500, 16667],
+         2: [19050, 26543, 43396],
          3: [11658, 150, 0],
          4: [10050, 150, 0]}
 
@@ -36,6 +36,7 @@ g_srv_data = b""
 gps_data_lock = threading.Lock()
 file_data_lock = threading.Lock()
 srv_data_lock = threading.Lock()
+values_lock = threading.Lock()
 ready_to_sent = threading.Event()
 srv_data_ready = threading.Event()
 srv_is_connected = threading.Event()
@@ -44,6 +45,7 @@ file_data_ready = threading.Event()
 last_sys_time = int(time.time())
 global isGpsOk
 isGpsOk = False
+g_values = [[0, 0, 0], [0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]]
 
 
 def srv_process(srv_port):
@@ -71,9 +73,24 @@ def srv_process(srv_port):
             print(f"Send to server: {MEASURER_ANSWER.decode(errors='ignore')}")
             print("CONNECTED")
             last_sync_time = time.time()
-        if srv_request[0:4] == SYNC_REQUEST:
+        if srv_request[0:3] == SYNC_REQUEST[0:3]:
             srv_is_connected.set()
             last_sync_time = time.time()
+            data = srv_request.split(" ")
+            if len(data) == 22:
+                vals = [[0, 0, 0], [0, 0, 0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]]
+                try:
+                    vals[0] = [float(data[1]), float(data[2]), float(data[3])]
+                    vals[1] = [float(data[4]), float(data[5]), float(data[6])]
+                    vals[2] = [float(data[7]), float(data[8]), float(data[9]),
+                               float(data[10]), float(data[11]), float(data[12]), float(data[13])]
+                    vals[3] = [float(data[14]), float(data[15]), float(data[16]),
+                               float(data[17]), float(data[18]), float(data[19]), float(data[20])]
+                    with values_lock:
+                        global g_values
+                        g_values = vals
+                except ValueError:
+                    pass
             srv_data_ready.wait()
             srv_data_ready.clear()
             with srv_data_lock:
@@ -116,7 +133,7 @@ def adam_process(adam_port):
             global g_gps_data
             gps_data = g_gps_data
         file_data = f"{POINT_NUM:02}; {gps_data.date_time}{val[0]:01.0f}; " \
-                    f"{val[1]:01.2f}; {val[2]:01.2f}; {gps_data.lat_lon_spd}\n"
+                    f"{val[1]:01.2f}; {val[2]:01.2f}; {gps_data.lat_lon_spd_dst}\n"
         srv_data = file_data.encode()
         with file_data_lock, srv_data_lock:
             global g_file_data, g_srv_data
@@ -138,24 +155,25 @@ def adam_process(adam_port):
 #         measurer_data_ready.clear()
 #         val = [opc.properties(OWEN_OPC_TAG1, id=2) * COEFS[POINT_NUM][0],
 #                opc.properties(OWEN_OPC_TAG2, id=2) * COEFS[POINT_NUM][1],
-#                opc.properties(OWEN_OPC_TAG3, id=2) * COEFS[POINT_NUM][2]]
+#                (opc.properties(OWEN_OPC_TAG3, id=2) - 0.48) * 2000 / 1.92]
+#         if val[2] < 0:
+#             val[2] = 0
 #         with gps_data_lock:
 #             global g_gps_data
 #             gps_data = g_gps_data
-#         file_data = f"{POINT_NUM:02}; {gps_data.date_time}{val[0]:04.2f}; " \
-#                     f"{val[1]:04.2f}; {val[2]:04.2f}; {gps_data.lat_lon_spd}\r"
+#         file_data = f"{POINT_NUM:02}; {gps_data.date_time}{val[0]:01.0f}; " \
+#                     f"{val[1]:01.2f}; {val[2]:01.2f}; {gps_data.lat_lon_spd_dst}\n"
 #         srv_data = file_data.encode()
 #         with file_data_lock, srv_data_lock:
 #             global g_file_data, g_srv_data
 #             g_file_data = file_data
-#             g_srv_data = srv_data
+#             g_srv_data = g_srv_data + srv_data
 #         if echo_adam:
 #             print(f"OWEN {time.time()}")
 #         file_data_ready.set()
 #         if ready_to_sent.is_set():
 #             ready_to_sent.clear()
 #             srv_data_ready.set()
-
 
 def gps_process(gps_port):
     last_good_gps_data = GpsData()
@@ -185,7 +203,7 @@ def gps_process(gps_port):
                         global g_gps_data
                         g_gps_data = last_good_gps_data
                     if echo_gps:
-                        print(f"GPS: " + last_good_gps_data.date_time + last_good_gps_data.lat_lon_spd)
+                        print(f"GPS: " + last_good_gps_data.date_time + last_good_gps_data.lat_lon_spd_dst)
                 if parsed_data.time.second % PERIOD_SRV == 0:
                     ready_to_sent.set()
                 isGpsOk = True
@@ -208,6 +226,66 @@ def file_process():
                 file.write(file_data)
                 if echo_file:
                     print(f"FILE {time.time()}")
+
+
+def gr_process():
+    root = Tk()
+    root.title("Шпагино - Смазнево")
+    frm = ttk.Frame(root, padding=10)
+    frm.grid()
+    labels = [[ttk.Label(frm, text=" ", padding=5),
+               ttk.Label(frm, text=" ", padding=5),
+               ttk.Label(frm, text=" ", padding=5)],
+              [ttk.Label(frm, text="1: Шпагино   ", font=("Consolas", 24), padding=5),
+               ttk.Label(frm, text="2: Смазнево  ", font=("Consolas", 24), padding=5),
+               ttk.Label(frm, text="3: Электровоз", font=("Consolas", 24), padding=5),
+               ttk.Label(frm, text="4: Электровоз", font=("Consolas", 24), padding=5)],
+              [ttk.Label(frm, text=f"{0: 6.0f} В", font=("Consolas", 18), padding=5, foreground="red3"),
+               ttk.Label(frm, text=f"{0: 6.2f} А", font=("Consolas", 18), padding=5, foreground="RoyalBlue4"),
+               ttk.Label(frm, text=f"{0: 8.2f} А", font=("Consolas", 18), padding=5, foreground="dark green"),
+               None, None, None, None],
+              [ttk.Label(frm, text=f"{0: 6.0f} В", font=("Consolas", 18), padding=5, foreground="red3"),
+               ttk.Label(frm, text=f"{0: 6.2f} А", font=("Consolas", 18), padding=5, foreground="RoyalBlue4"),
+               ttk.Label(frm, text=f"{0: 8.2f} А", font=("Consolas", 18), padding=5, foreground="dark green"),
+               None, None, None, None],
+              [ttk.Label(frm, text=f"{0: 6.0f} В", font=("Consolas", 18), padding=5, foreground="red3"),
+               ttk.Label(frm, text=f"{0: 6.2f} А", font=("Consolas", 18), padding=5, foreground="RoyalBlue4"),
+               ttk.Label(frm, text=f"{0: 8.2f} А", font=("Consolas", 18), padding=5, foreground="DeepPink4"),
+               ttk.Label(frm, text=f"{0: 8.0f} км/ч", font=("Consolas", 18), padding=5, foreground="black"),
+               ttk.Label(frm, text=f"{0: 8.2f} км", font=("Consolas", 18), padding=5, foreground="maroon"),
+               ttk.Label(frm, text=f"{0: 12.4f}", font=("Consolas", 12), padding=5, foreground="dark olive green"),
+               ttk.Label(frm, text=f"{0: 12.4f}", font=("Consolas", 12), padding=5, foreground="dark olive green")],
+              [ttk.Label(frm, text=f"{0: 6.0f} В", font=("Consolas", 18), padding=5, foreground="red3"),
+               ttk.Label(frm, text=f"{0: 6.2f} А", font=("Consolas", 18), padding=5, foreground="RoyalBlue4"),
+               ttk.Label(frm, text=f"{0: 8.2f} А", font=("Consolas", 18), padding=5, foreground="DeepPink4"),
+               ttk.Label(frm, text=f"{0: 8.0f} км/ч", font=("Consolas", 18), padding=5, foreground="black"),
+               ttk.Label(frm, text=f"{0: 8.2f} км", font=("Consolas", 18), padding=5, foreground="maroon"),
+               ttk.Label(frm, text=f"{0: 12.4f}", font=("Consolas", 12), padding=5, foreground="dark olive green"),
+               ttk.Label(frm, text=f"{0: 12.4f}", font=("Consolas", 12), padding=5, foreground="dark olive green")]]
+    labels[0][0].grid(column=0, row=2)
+    labels[0][1].grid(column=0, row=5)
+    labels[0][2].grid(column=0, row=8)
+    for n_point in range(4):
+        labels[1][n_point].grid(column=0, row=n_point*3)
+        for n_param in range(7):
+            if labels[n_point + 2][n_param]:
+                labels[n_point + 2][n_param].grid(column=n_param, row=3 * n_point + 1)
+    root.update()
+    while True:
+        time.sleep(1)
+        with values_lock:
+            global g_values
+            vals = g_values
+        for n_point in range(4):
+            labels[n_point + 2][0].configure(text=f"{vals[n_point][0]: 6.0f} В")
+            labels[n_point + 2][1].configure(text=f"{vals[n_point][1]: 6.2f} А")
+            labels[n_point + 2][2].configure(text=f"{vals[n_point][2]: 8.2f} А")
+        for n_point in range(2, 4):
+            labels[n_point + 2][3].configure(text=f"{vals[n_point][3]: 8.0f} км/ч")
+            labels[n_point + 2][4].configure(text=f"{vals[n_point][4]: 8.2f} км")
+            labels[n_point + 2][5].configure(text=f"{vals[n_point][5]: 12.4f}")
+            labels[n_point + 2][6].configure(text=f"{vals[n_point][6]: 12.4f}")
+        root.update()
 
 
 def find_serial(use_adam: bool, use_owen: bool, use_gps: bool):
@@ -276,7 +354,7 @@ def timeout():
 
 async def main():
     try:
-        with open("d:\\TerminalProgram\\point.ini", "r") as file:
+        with open("D:\\TerminalProgram\\point.ini", "r") as file:
             global POINT_NUM, useAdam, useOwen, useGps
             POINT_NUM = int(file.readline())
             if file.readline()[0:5] == "False":
@@ -286,7 +364,7 @@ async def main():
             if file.readline()[0:5] == "False":
                 useGps = False
     except (IOError, ValueError):
-        print("Can't read d:\\TerminalProgram\\point.ini")
+        print("Can't read D:\\TerminalProgram\\point.ini")
         exit(-1)
     if not os.path.exists(PATH):
         try:
@@ -299,6 +377,7 @@ async def main():
     (adam_serial_port, owen_serial_port, gps_serial_port, srv_serial_port) = find_serial(useAdam, useOwen, useGps)
     file_thread = threading.Thread(target=file_process)
     srv_thread = threading.Thread(target=srv_process, args=[srv_serial_port])
+    gr_thread = threading.Thread(target=gr_process)
     timer = RepeatTimer(0.1, timeout)
     if useGps:
         gps_thread = threading.Thread(target=gps_process, args=[gps_serial_port])
@@ -311,6 +390,7 @@ async def main():
     #     owen_thread.start()
     file_thread.start()
     srv_thread.start()
+    gr_thread.start()
     timer.start()
 
 
